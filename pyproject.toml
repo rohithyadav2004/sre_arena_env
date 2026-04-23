@@ -53,5 +53,8 @@ asyncio_mode = "auto"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["sre_arena_env", "sre_arena_env.server"]
+packages = ["sre_arena_env", "sre_arena_env.server", "sre_arena_env.server.dashboard"]
 package-dir = { "sre_arena_env" = ".", "sre_arena_env.server" = "server" }
+
+[tool.setuptools.package-data]
+"sre_arena_env.server.dashboard" = ["*.html"]

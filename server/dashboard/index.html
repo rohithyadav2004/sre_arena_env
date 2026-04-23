@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRE Arena — Live</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #1a1a1a;
+  color: #c8c8c8;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
+  font-size: 13px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── TOP BAR ──────────────────────────────────────────── */
+.topbar {
+  background: #111;
+  border: 1px solid #333;
+  border-bottom: 1px solid #555;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+.topbar-title { color: #fff; font-weight: bold; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; }
+.topbar-sep   { color: #444; }
+.topbar-item  { color: #aaa; font-size: 12px; }
+.topbar-item span { color: #eee; }
+.topbar-item.blue span { color: #4fa3e0; }
+.topbar-item.red  span { color: #e04f4f; }
+.conn-indicator {
+  margin-left: auto;
+  font-size: 11px;
+  color: #3c3;
+  border: 1px solid #252;
+  padding: 2px 7px;
+  background: #0d1f0d;
+}
+.conn-indicator.off { color: #e04f4f; border-color: #3a1212; background: #1a0a0a; }
+
+/* ── GRID ─────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 180px;
+  gap: 5px;
+  flex: 1;
+  min-height: 0;
+}
+
+.pane {
+  background: #111;
+  border: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.pane-header {
+  background: #1e1e1e;
+  border-bottom: 1px solid #333;
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.pane-header .badge { font-size: 10px; padding: 1px 5px; border: 1px solid #444; color: #666; }
+.pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  min-height: 0;
+}
+
+/* ── REQUEST LOG ─────────────────────────────────────── */
+.log-entry { padding: 1px 0; border-bottom: 1px solid #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-ts   { color: #555; margin-right: 6px; }
+.log-ip   { color: #7ec8e3; }
+.log-path { color: #aaa; }
+.s200 { color: #2ecc71; font-weight: bold; }
+.s403 { color: #c0392b; font-weight: bold; }
+.s429 { color: #e67e22; font-weight: bold; }
+.log-tag { font-size: 10px; color: #666; margin-left: 5px; border: 1px solid #333; padding: 0 3px; }
+.pause-btn { font-size: 10px; background: none; border: 1px solid #333; color: #666; padding: 1px 6px; cursor: pointer; font-family: inherit; }
+.pause-btn:hover { border-color: #666; color: #aaa; }
+.step-div { color: #333; font-size: 10px; padding: 4px 0 2px; border-top: 1px dotted #222; margin: 3px 0; }
+
+/* ── DEFENDER STATE ──────────────────────────────────── */
+.state-label { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #222; padding-bottom: 2px; margin-bottom: 4px; margin-top: 8px; }
+.state-label:first-child { margin-top: 0; }
+.rule { color: #7ec8e3; padding: 1px 0; }
+.rule::before { content: "  "; }
+.mw-route { color: #888; font-size: 11px; margin-top: 4px; }
+.mw-js    { color: #c0c080; font-size: 11px; padding-left: 10px; word-break: break-all; }
+.metrics-row { display: flex; gap: 14px; font-size: 11px; margin-top: 4px; }
+.no-data { color: #333; font-style: italic; }
+
+/* ── ATTACKER STRATEGY ───────────────────────────────── */
+.tmpl-name { color: #e04f4f; font-size: 14px; letter-spacing: 1px; margin-bottom: 6px; }
+.param-row { display: flex; gap: 8px; padding: 1px 0; }
+.param-key { color: #666; min-width: 90px; }
+.param-val { color: #e8c46a; }
+.templates-used { color: #444; font-size: 11px; margin-top: 8px; border-top: 1px solid #222; padding-top: 6px; }
+
+/* ── REWARD CURVES ───────────────────────────────────── */
+.spark-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.spark-role { width: 38px; font-size: 11px; }
+.spark-chars { font-size: 17px; letter-spacing: 3px; line-height: 1; }
+.spark-val { color: #888; font-size: 11px; margin-left: 4px; }
+.spark-meta { color: #444; font-size: 10px; margin-top: 8px; }
+.step-stats { color: #555; font-size: 11px; margin-top: 8px; border-top: 1px solid #1e1e1e; padding-top: 6px; }
+.step-stats b { color: #888; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">SRE Arena</span>
+  <span class="topbar-sep">|</span>
+  <span class="topbar-item">Gen: <span id="tb-gen">Dev</span></span>
+  <span class="topbar-sep">·</span>
+  <span class="topbar-item">Ep: <span id="tb-ep">—</span></span>
+  <span class="topbar-sep">·</span>
+  <span class="topbar-item blue">Blue (avg): <span id="tb-blue">—</span></span>
+  <span class="topbar-sep">·</span>
+  <span class="topbar-item red">Red (avg): <span id="tb-red">—</span></span>
+  <span class="conn-indicator off" id="conn">○ Disconnected</span>
+</div>
+
+<!-- GRID -->
+<div class="grid">
+
+  <!-- TOP-LEFT: Live Request Log -->
+  <div class="pane">
+    <div class="pane-header">
+      Live Request Log
+      <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
+    </div>
+    <div class="pane-body" id="log-body">
+      <div class="no-data">Waiting for events…</div>
+    </div>
+  </div>
+
+  <!-- TOP-RIGHT: Defender State -->
+  <div class="pane">
+    <div class="pane-header">
+      Blue (Defender) State
+      <span class="badge" id="step-badge">—</span>
+    </div>
+    <div class="pane-body" id="defender-body">
+      <div class="no-data">Waiting for events…</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM-LEFT: Attacker Strategy -->
+  <div class="pane">
+    <div class="pane-header">Red (Attacker) Strategy</div>
+    <div class="pane-body" id="attacker-body">
+      <div class="no-data">Waiting for events…</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM-RIGHT: Reward Curves -->
+  <div class="pane">
+    <div class="pane-header">Reward Curves</div>
+    <div class="pane-body" id="reward-body">
+      <div class="no-data">Waiting for events…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+const SPARK = "▁▂▃▄▅▆▇█";
+const SPARK_BUF = 16;
+
+function toChar(v) {
+  // Attacker diversity bonus can reach 1.4 — clamp to [0, 1.4]
+  const norm = Math.max(0, Math.min(1, v / 1.4));
+  return SPARK[Math.min(7, Math.floor(norm * 8))];
+}
+
+const sparks = { defender: [], attacker: [] };
+
+function pushSpark(role, reward) {
+  sparks[role].push(reward);
+  if (sparks[role].length > SPARK_BUF) sparks[role].shift();
+}
+
+function sparkStr(role) {
+  return sparks[role].map(toChar).join("") || "—";
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let epCount = 0;
+let stepNum = 0;
+let currentTask = "—";
+let logPaused = false;
+const templatesThisEp = [];
+
+// ── Log pane ──────────────────────────────────────────────────────────────────
+function togglePause() {
+  logPaused = !logPaused;
+  document.getElementById("pause-btn").textContent = logPaused ? "▶ Resume" : "⏸ Pause";
+}
+
+function parseLogLine(line) {
+  // nginx combined log: IP - - [ts] "METHOD path proto" status bytes
+  const m = line.match(/^(\S+).*?"[A-Z]+\s+(\S+)\s[^"]*"\s+(\d{3})/);
+  if (!m) return null;
+  return { ip: m[1], path: m[2], status: parseInt(m[3], 10) };
+}
+
+function appendLogStep(stepN, metrics, logSample) {
+  if (logPaused) return;
+  const body = document.getElementById("log-body");
+
+  const placeholder = body.querySelector(".no-data");
+  if (placeholder) placeholder.remove();
+
+  const div = document.createElement("div");
+  div.className = "step-div";
+  const m = metrics || {};
+  div.textContent = "— step " + stepN +
+    " · 200:" + (m["200_count"] ?? "?") +
+    " 403:" + (m["403_count"] ?? "?") +
+    " 429:" + (m["429_count"] ?? "?") + " —";
+  body.appendChild(div);
+
+  (logSample || []).forEach(function(line) {
+    const parsed = parseLogLine(line);
+    if (!parsed) return;
+    const el = document.createElement("div");
+    el.className = "log-entry";
+    let statusCls = "s200";
+    let tag = "";
+    if (parsed.status === 403) { statusCls = "s403"; tag = "BLOCKED"; }
+    else if (parsed.status === 429) { statusCls = "s429"; tag = "RATE LTD"; }
+    el.innerHTML =
+      '<span class="log-ts">' + new Date().toLocaleTimeString("en-GB", {hour12: false}) + "</span>" +
+      '<span class="log-ip">' + esc(parsed.ip) + "</span>" +
+      '<span class="log-path"> ' + esc(parsed.path) + " </span>" +
+      '<span class="' + statusCls + '">' + parsed.status + "</span>" +
+      (tag ? '<span class="log-tag">' + tag + "</span>" : "");
+    body.appendChild(el);
+  });
+
+  body.scrollTop = body.scrollHeight;
+}
+
+// ── Defender pane ─────────────────────────────────────────────────────────────
+function renderDefender(obs, action, stepN) {
+  document.getElementById("step-badge").textContent = "step " + stepN;
+  const body = document.getElementById("defender-body");
+
+  if (!obs) {
+    body.innerHTML = '<div class="no-data">Waiting for defender step…</div>';
+    return;
+  }
+
+  let html = "";
+
+  html += '<div class="state-label">Nginx Rules</div>';
+  const rules = obs.current_rules || [];
+  if (rules.length === 0) {
+    html += '<div class="no-data">none</div>';
+  } else {
+    rules.forEach(function(r) { html += '<div class="rule">' + esc(r) + "</div>"; });
+  }
+
+  html += '<div class="state-label">Express Middleware</div>';
+  const mw = obs.current_middleware || {};
+  const entries = Object.entries(mw);
+  if (entries.length === 0) {
+    html += '<div class="no-data">none</div>';
+  } else {
+    entries.forEach(function(kv) {
+      html += '<div class="mw-route">' + esc(kv[0]) + '</div><div class="mw-js">' + esc(kv[1]) + "</div>";
+    });
+  }
+
+  html += '<div class="state-label">Last Step Metrics</div>';
+  const met = obs.last_step_metrics || {};
+  html +=
+    '<div class="metrics-row">' +
+    '<span style="color:#2ecc71">200: <b>' + (met["200_count"] ?? "?") + "</b></span>" +
+    '<span style="color:#c0392b">403: <b>' + (met["403_count"] ?? "?") + "</b></span>" +
+    '<span style="color:#e67e22">429: <b>' + (met["429_count"] ?? "?") + "</b></span>" +
+    '<span style="color:#444">total: ' + (met["requests_total"] ?? "?") + "</span>" +
+    "</div>";
+
+  if (action && action.action_type) {
+    html += '<div class="state-label" style="margin-top:12px">Last Action</div>';
+    html += '<div style="color:#888;font-size:11px">type: <span style="color:#7ec8e3">' + esc(action.action_type) + "</span></div>";
+    if (action.rule_text) {
+      html += '<div style="color:#888;font-size:11px">rule: <span style="color:#7ec8e3">' + esc(action.rule_text) + "</span></div>";
+    }
+    if (action.route) {
+      html += '<div style="color:#888;font-size:11px">route: <span style="color:#7ec8e3">' + esc(action.route) + "</span></div>";
+    }
+  }
+
+  body.innerHTML = html;
+}
+
+// ── Attacker pane ─────────────────────────────────────────────────────────────
+function renderAttacker(action) {
+  const body = document.getElementById("attacker-body");
+  if (!action || !action.template) {
+    body.innerHTML = '<div class="no-data">Waiting for attacker step…</div>';
+    return;
+  }
+
+  if (!templatesThisEp.includes(action.template)) templatesThisEp.push(action.template);
+
+  let html = '<div class="tmpl-name">' + esc(action.template) + "</div>";
+  const skip = new Set(["template"]);
+  Object.entries(action).forEach(function(kv) {
+    if (skip.has(kv[0])) return;
+    const v = kv[1];
+    const display = Array.isArray(v) && v.length > 3
+      ? "[ " + v.slice(0, 3).join(", ") + " … +" + (v.length - 3) + " ]"
+      : JSON.stringify(v);
+    html += '<div class="param-row"><span class="param-key">' + esc(kv[0]) + ':</span><span class="param-val">' + esc(display) + "</span></div>";
+  });
+  html += '<div class="templates-used">used this ep: ' + templatesThisEp.map(esc).join(", ") + "</div>";
+  body.innerHTML = html;
+}
+
+// ── Reward pane ───────────────────────────────────────────────────────────────
+function renderRewards(role, task) {
+  const body = document.getElementById("reward-body");
+  const blueArr = sparks.defender;
+  const redArr  = sparks.attacker;
+  const blueVal = blueArr.length ? blueArr[blueArr.length - 1].toFixed(3) : "—";
+  const redVal  = redArr.length  ? redArr[redArr.length   - 1].toFixed(3) : "—";
+
+  body.innerHTML =
+    '<div class="spark-row">' +
+    '<span class="spark-role" style="color:#4fa3e0">Blue</span>' +
+    '<span class="spark-chars" style="color:#4fa3e0">' + sparkStr("defender") + "</span>" +
+    '<span class="spark-val">' + blueVal + "</span>" +
+    "</div>" +
+    '<div class="spark-row">' +
+    '<span class="spark-role" style="color:#e04f4f">Red&nbsp;</span>' +
+    '<span class="spark-chars" style="color:#e04f4f">' + sparkStr("attacker") + "</span>" +
+    '<span class="spark-val">' + redVal + "</span>" +
+    "</div>" +
+    '<div class="step-stats"><b>step:</b> ' + stepNum + " · <b>role:</b> " + esc(role || "—") + " · <b>task:</b> " + esc(task || "—") + "</div>" +
+    '<div class="spark-meta">last ' + SPARK_BUF + " step rewards · 1 event per env.step()</div>";
+}
+
+// ── SSE event handlers ────────────────────────────────────────────────────────
+function handleReset(e) {
+  const d = JSON.parse(e.data);
+  epCount++;
+  stepNum = 0;
+  templatesThisEp.length = 0;
+  sparks.defender = [];
+  sparks.attacker = [];
+  currentTask = d.task_id || "—";
+  document.getElementById("tb-ep").textContent = epCount;
+  renderRewards(d.role, d.task_id);
+
+  const logBody = document.getElementById("log-body");
+  logBody.innerHTML = '<div class="step-div">— episode ' + epCount + " started · " + esc(d.role) + " · " + esc(d.task_id) + " —</div>";
+}
+
+function handleStep(e) {
+  const d = JSON.parse(e.data);
+  stepNum = d.step;
+
+  pushSpark(d.role, d.reward);
+
+  const met = d.metrics || {};
+  document.getElementById("tb-blue").textContent = (met.blue_score !== undefined ? met.blue_score : "—").toString();
+  document.getElementById("tb-red").textContent  = (met.red_score  !== undefined ? met.red_score  : "—").toString();
+
+  const obs = d.observation || {};
+  appendLogStep(d.step, obs.last_step_metrics, obs.log_sample);
+
+  if (d.role === "defender") {
+    renderDefender(obs, d.action, d.step);
+  } else {
+    renderAttacker(d.action);
+  }
+
+  renderRewards(d.role, currentTask);
+}
+
+function handleEpisodeEnd(e) {
+  const d = JSON.parse(e.data);
+  const logBody = document.getElementById("log-body");
+  const el = document.createElement("div");
+  el.className = "step-div";
+  el.textContent = "— episode end · " + d.role + " · final reward: " + d.final_reward + " —";
+  logBody.appendChild(el);
+  logBody.scrollTop = logBody.scrollHeight;
+}
+
+function setConnStatus(ok) {
+  const el = document.getElementById("conn");
+  if (ok) {
+    el.textContent = "● Connected";
+    el.className = "conn-indicator";
+  } else {
+    el.textContent = "○ Disconnected";
+    el.className = "conn-indicator off";
+  }
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ── Connect ───────────────────────────────────────────────────────────────────
+const es = new EventSource("/dashboard/events");
+es.addEventListener("reset",       handleReset);
+es.addEventListener("step",        handleStep);
+es.addEventListener("episode_end", handleEpisodeEnd);
+es.onopen  = function() { setConnStatus(true); };
+es.onerror = function() { setConnStatus(false); };
+</script>
+</body>
+</html>
