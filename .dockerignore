@@ -1,0 +1,16 @@
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+tests/
+docs/
+notebooks/
+training/
+demo/
+uv.lock
+.DS_Store
+.git
+.gitignore
+.worktrees/

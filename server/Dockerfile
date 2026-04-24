@@ -1,80 +1,41 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+FROM ghcr.io/meta-pytorch/openenv-base:latest
 
-# Multi-stage build using openenv-base
-# This Dockerfile is flexible and works for both:
-# - In-repo environments (with local OpenEnv sources)
-# - Standalone environments (with openenv from PyPI/Git)
-# The build script (openenv build) handles context detection and sets appropriate build args.
-
-ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
-FROM ${BASE_IMAGE} AS builder
+# HF Spaces enforces UID 1000. Base image runs as root; create appuser.
+RUN useradd -u 1000 -m -s /bin/bash appuser
 
 WORKDIR /app
 
-# Ensure git is available (required for installing dependencies from VCS)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
+# ── Dep-cache layer ───────────────────────────────────────────────────────────
+# Full runtime dep list mirroring pyproject.toml. This layer is cached until
+# version pins change. pip no-ops on packages already in the base image
+# (fastapi, pydantic, httpx, sse-starlette, PyYAML); real work is openenv-core,
+# aiohttp, and upgrading uvicorn from the base's 0.44.0 to >= 0.45.0.
+COPY pyproject.toml .
+RUN pip install --no-cache-dir \
+    "openenv-core[core]>=0.2.3" \
+    "fastapi>=0.136.0" \
+    "uvicorn>=0.45.0" \
+    "pydantic>=2.13.0" \
+    "httpx>=0.28.1" \
+    "sse-starlette>=3.0.0" \
+    "aiohttp==3.13.5" \
+    "pyyaml>=6.0.2"
 
-# Build argument to control whether we're building standalone or in-repo
-ARG BUILD_MODE=in-repo
-ARG ENV_NAME=sre_arena_env
+# ── Source + wheel layer ──────────────────────────────────────────────────────
+# Copies all source. pip --no-deps builds the setuptools wheel; package_data
+# copies server/dashboard/index.html into site-packages so Path(__file__).parent
+# in sse.py resolves to the installed location (not /app/).
+COPY . .
+RUN pip install --no-deps --no-cache-dir . && \
+    chown -R appuser:appuser /app
 
-# Copy environment code (always at root of build context)
-COPY . /app/env
+USER appuser
 
-# For in-repo builds, openenv is already vendored in the build context
-# For standalone builds, openenv will be installed via pyproject.toml
-WORKDIR /app/env
+EXPOSE 8000
 
-# Ensure uv is available (for local builds where base image lacks it)
-RUN if ! command -v uv >/dev/null 2>&1; then \
-        curl -LsSf https://astral.sh/uv/install.sh | sh && \
-        mv /root/.local/bin/uv /usr/local/bin/uv && \
-        mv /root/.local/bin/uvx /usr/local/bin/uvx; \
-    fi
-    
-# Install dependencies using uv sync
-# If uv.lock exists, use it; otherwise resolve on the fly
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-install-project --no-editable; \
-    else \
-        uv sync --no-install-project --no-editable; \
-    fi
+# HF Spaces uses this to know when the container is ready.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/ || exit 1
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-editable; \
-    else \
-        uv sync --no-editable; \
-    fi
-
-# Final runtime stage
-FROM ${BASE_IMAGE}
-
-WORKDIR /app
-
-# Copy the virtual environment from builder
-COPY --from=builder /app/env/.venv /app/.venv
-
-# Copy the environment code
-COPY --from=builder /app/env /app/env
-
-# Set PATH to use the virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Set PYTHONPATH so imports work correctly
-ENV PYTHONPATH="/app/env:$PYTHONPATH"
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run the FastAPI server
-# The module path is constructed to work with the /app/env structure
-CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
+CMD ["uvicorn", "sre_arena_env.server.app:app", \
+     "--host", "0.0.0.0", "--port", "8000"]

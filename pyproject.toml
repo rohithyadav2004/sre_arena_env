@@ -17,7 +17,7 @@ dependencies = [
     # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
     # install from github
     # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
-    "openenv-core[core]>=0.2.2",
+    "openenv-core[core]>=0.2.3",
     # Environment-specific dependencies
     # Add all dependencies needed for your environment here
     # Examples:
@@ -28,7 +28,7 @@ dependencies = [
     # "smolagents>=1.22.0,<2",
     "fastapi>=0.136.0",
     "uvicorn>=0.45.0",
-    "pydantic>=2.12.0",
+    "pydantic>=2.13.0",
     "httpx>=0.28.1",
     "sse-starlette>=3.0.0",
     "aiohttp==3.13.5",
@@ -50,6 +50,7 @@ server = "sre_arena_env.server.app:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = ["docker: requires Docker daemon — run manually with pytest -m docker"]
 
 [tool.setuptools]
 include-package-data = true
