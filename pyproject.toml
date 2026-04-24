@@ -50,7 +50,10 @@ server = "sre_arena_env.server.app:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-markers = ["docker: requires Docker daemon — run manually with pytest -m docker"]
+markers = [
+    "docker: requires Docker daemon — run manually with pytest -m docker",
+    "hf_space: requires live HF Space — run manually with pytest -m hf_space",
+]
 
 [tool.setuptools]
 include-package-data = true

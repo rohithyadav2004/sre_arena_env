@@ -1,6 +1,6 @@
 """Phase 4 Docker container integration tests.
 
-Builds server/Dockerfile from the project root, runs the container on host port
+Builds Dockerfile from the project root, runs the container on host port
 8767 (avoids collision with Phase 2's 8765 and Phase 3's 8766), and exercises
 the same HTTP endpoints as Phases 2 and 3 but through Docker's network layer.
 
@@ -86,9 +86,9 @@ def require_docker() -> None:  # type: ignore[return]
 @pytest.fixture(scope="session")
 def docker_container(require_docker: None) -> str:
     """Build image, start container, wait for health, yield HTTP base URL, teardown."""
-    # Build image from project root
+    # Build image from project root (Dockerfile is at repo root since Phase 5)
     subprocess.run(
-        ["docker", "build", "-t", _IMAGE_TAG, "-f", "server/Dockerfile", "."],
+        ["docker", "build", "-t", _IMAGE_TAG, "."],
         cwd=_PROJECT_ROOT,
         check=True,
         timeout=300,

@@ -1,12 +1,11 @@
 ---
-title: Sre Arena Env Environment Server
-emoji: 🎶
+title: SRE Arena
+emoji: 🛡️
 colorFrom: red
-colorTo: red
+colorTo: blue
 sdk: docker
 pinned: false
 app_port: 8000
-base_path: /web
 tags:
   - openenv
 ---
@@ -234,6 +233,16 @@ Run the server locally for development:
 ```bash
 uvicorn server.app:app --reload
 ```
+
+## Deployment & Access
+
+This Space is deployed at https://huggingface.co/spaces/blitz1809/sre-arena
+and runs a live SRE Arena env with dashboard.
+
+During hackathon evaluation, the Space is public. During development it may
+be private — in which case authenticated requests are required (pass
+`Authorization: Bearer <HF_TOKEN>` header). The WebSocket client rollout test
+requires the Space to be public; flip visibility in Space Settings.
 
 ## Project Structure
 
