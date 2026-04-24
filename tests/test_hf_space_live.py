@@ -59,13 +59,13 @@ class TestHFSpaceLive:
         data = r.json()
         assert data.get("status") in ("ok", "healthy")
 
-    @pytest.mark.skip(
-        reason=(
-            "WebSocket rollout requires the Space to be Public — flip at "
-            "https://huggingface.co/spaces/blitz1809/sre-arena → Settings → "
-            "Visibility, then remove this skip decorator."
-        )
-    )
+    #@pytest.mark.skip(
+#        reason=(
+#            "WebSocket rollout requires the Space to be Public — flip at "
+#            "https://huggingface.co/spaces/blitz1809/sre-arena → Settings → "
+#            "Visibility, then remove this skip decorator."
+#        )
+#    )
     def test_seeded_rollout_matches_local(self) -> None:
         """Seeded rollout against live Space must match in-process rewards."""
         from sre_arena_env.client import SreArenaEnvClient
