@@ -1,4 +1,11 @@
 # Smoke-test config — runs in ~2-5 minutes on L4
+num_generations: 3
+
+per_generation:
+  - {role: 'defender', episodes: 20}  # Gen 0: train defender vs scripted attacker
+  - {role: 'attacker', episodes: 20}  # Gen 1: train attacker vs scripted defender
+  - {role: 'defender', episodes: 20}  # Gen 2: train defender vs Gen-1 attacker (Phase 7)
+
 model:
   name: "Qwen/Qwen2.5-3B-Instruct"
   load_in_4bit: true
@@ -27,7 +34,7 @@ training:
   top_p: 0.9
 
   save_steps: 50
-  output_dir: "./checkpoints/defender_smoketest"
+  output_dir: "./checkpoints/smoketest"
 
   logging_steps: 1
   report_to: "none"

@@ -1,4 +1,11 @@
 # Real L4 training — ~6-8 hours on L4
+num_generations: 3
+
+per_generation:
+  - {role: 'defender', episodes: 200}  # Gen 0: train defender vs scripted attacker
+  - {role: 'attacker', episodes: 200}  # Gen 1: train attacker vs scripted defender
+  - {role: 'defender', episodes: 200}  # Gen 2: train defender vs Gen-1 attacker (Phase 7)
+
 model:
   name: "Qwen/Qwen2.5-3B-Instruct"
   load_in_4bit: true
@@ -27,7 +34,7 @@ training:
   top_p: 0.9
 
   save_steps: 50
-  output_dir: "./checkpoints/defender_gen1"
+  output_dir: "./checkpoints/l4_run"
 
   logging_steps: 5
   report_to: "tensorboard"
