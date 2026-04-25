@@ -28,7 +28,7 @@ dependencies = [
     # "smolagents>=1.22.0,<2",
     "fastapi>=0.136.0",
     "uvicorn>=0.45.0",
-    "pydantic>=2.13.0",
+    "pydantic>=2.10",
     "httpx>=0.28.1",
     "sse-starlette>=3.0.0",
     "aiohttp==3.13.5",
@@ -44,7 +44,7 @@ dev = [
     "ruff>=0.8.0",
 ]
 training = [
-    "trl>=0.21.0,<0.25",
+    "trl>=0.21.0,<0.30",
     "peft>=0.14.0",
     "transformers>=4.47.0",
     "bitsandbytes>=0.45.0",
