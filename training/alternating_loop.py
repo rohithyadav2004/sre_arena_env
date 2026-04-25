@@ -103,6 +103,19 @@ def run_alternating_loop(cfg: dict, dry_run: bool = False) -> None:
 
     logger.info("Starting alternating loop: %d generations (dry_run=%s)", num_gens, dry_run)
 
+    # Warn if any generation would need a trained opponent checkpoint (Phase 7 work).
+    # Without Phase 7, only gen 0 (opponent_checkpoint=None) can actually train.
+    for _gi in range(num_gens):
+        _role = _role_for_gen(_gi, per_gen)
+        if get_opponent_checkpoint(_gi, _role, output_dir) is not None and not dry_run:
+            logger.warning(
+                "Gen %d requires a trained opponent checkpoint (Phase 7 work). "
+                "Training will raise NotImplementedError at that generation. "
+                "Use --dry-run to preview without running, or only run gen 0 for now.",
+                _gi,
+            )
+            break
+
     for gen_idx in range(num_gens):
         role = _role_for_gen(gen_idx, per_gen)
         opponent_ckpt = get_opponent_checkpoint(gen_idx, role, output_dir)
