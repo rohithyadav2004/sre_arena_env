@@ -93,6 +93,9 @@ def _collect_observations(
         attacker_dict = attacker_action.model_dump(exclude={"delay_ms", "metadata"})
         env._last_attacker_action = attacker_dict
 
+        # Warm-up step: triggers traffic generation (log not yet populated)
+        env.step(DefenderAction(action_type="read_log", log_tail_lines=20))
+        # Capture step: log_tail now reflects the warm-up step's traffic
         obs = env.step(DefenderAction(action_type="read_log", log_tail_lines=20))
 
         observations.append(obs)
@@ -203,6 +206,7 @@ def train_defender(
         num_generations=tr["rollouts_per_episode"],
         temperature=tr["temperature"],
         top_p=tr["top_p"],
+        fp16=True,
     )
 
     reward_fn = make_reward_function(task_id=cfg["env"]["task_id"])

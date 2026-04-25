@@ -7,3 +7,15 @@ __pycache__/
 checkpoints/
 docs/superpowers/
 .worktrees/
+
+# Phase 7 training artifacts
+checkpoints/
+smoke_test_*.log
+training_*.log
+training_pid.txt
+
+# Phase 7 training artifacts
+checkpoints/
+smoke_test*.log
+training_*.log
+training_pid.txt

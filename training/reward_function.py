@@ -58,6 +58,10 @@ def make_reward_function(
             env = SreArenaEnvironment()
             env.reset(role="defender", seed=int(seed), task_id=task_id)
             env._last_attacker_action = json.loads(att_json)
+            # Warm-up step: triggers traffic generation (matches collection-time setup)
+            from sre_arena_env.models import DefenderAction as _DA
+            env.step(_DA(action_type="read_log", log_tail_lines=20))
+            # Now evaluate the LLM's proposed action against the populated env
             obs = env.step(action)
             rewards.append(float(obs.reward))
 
