@@ -65,7 +65,7 @@ markers = [
 
 [tool.setuptools]
 include-package-data = true
-packages = ["sre_arena_env", "sre_arena_env.server", "sre_arena_env.server.dashboard", "sre_arena_env.training"]
+packages = ["sre_arena_env", "sre_arena_env.server", "sre_arena_env.server.dashboard", "sre_arena_env.server.simulator", "sre_arena_env.training"]
 package-dir = { "sre_arena_env" = ".", "sre_arena_env.server" = "server" }
 
 [tool.setuptools.package-data]
