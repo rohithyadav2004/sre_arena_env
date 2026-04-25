@@ -6,7 +6,7 @@ Usage:
 GPU is required to run training. Unit tests cover load_config and
 _collect_observations without GPU by importing this module directly.
 All GPU-specific imports (torch, transformers, peft, trl) are deferred
-inside main() so the module is importable on CPU-only machines.
+inside train_defender() so the module is importable on CPU-only machines.
 """
 from __future__ import annotations
 
@@ -90,7 +90,6 @@ def _collect_observations(
         env.reset(role="defender", seed=seed, task_id=task_id)
 
         attacker_action = attacker.act()
-        # Exclude delay_ms (simulator ignores it) and metadata (Action base field)
         attacker_dict = attacker_action.model_dump(exclude={"delay_ms", "metadata"})
         env._last_attacker_action = attacker_dict
 
@@ -106,20 +105,34 @@ def _collect_observations(
     return observations, attacker_dicts, episode_seeds
 
 
-def main() -> None:
-    """CLI entrypoint for defender GRPO training. Requires CUDA GPU."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+def train_defender(
+    cfg: dict,
+    opponent_checkpoint: str | None = None,
+    gen_idx: int = 0,
+) -> str:
+    """Run one generation of defender GRPO training. Returns output dir path.
 
-    parser = argparse.ArgumentParser(description="Train SRE Arena defender with GRPO")
-    parser.add_argument("--config", required=True, help="Path to YAML config file")
-    args = parser.parse_args()
+    All GPU imports are deferred inside this function so the module is
+    importable on CPU-only machines.
 
-    cfg = load_config(args.config)
+    Args:
+        cfg: Parsed YAML config dict.
+        opponent_checkpoint: Path to trained attacker checkpoint. Raises
+            NotImplementedError — loading trained opponents is Phase 7 work.
+        gen_idx: Generation index, appended to the output directory name.
 
-    # GPU-only imports — deferred so unit tests can import this module on CPU
+    Returns:
+        Path string of the saved checkpoint directory.
+
+    Raises:
+        NotImplementedError: If opponent_checkpoint is provided.
+    """
+    if opponent_checkpoint is not None:
+        raise NotImplementedError(
+            "Loading a trained opponent from checkpoint is Phase 7 work. "
+            f"Got opponent_checkpoint={opponent_checkpoint!r}"
+        )
+
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -174,8 +187,9 @@ def main() -> None:
     logger.info("Dataset built: %d prompts", len(dataset))
 
     tr = cfg["training"]
+    output_dir = f"{tr['output_dir']}_defender_gen{gen_idx}"
     grpo_config = GRPOConfig(
-        output_dir=tr["output_dir"],
+        output_dir=output_dir,
         learning_rate=tr["learning_rate"],
         per_device_train_batch_size=tr["per_device_train_batch_size"],
         gradient_accumulation_steps=tr["gradient_accumulation_steps"],
@@ -201,11 +215,31 @@ def main() -> None:
         processing_class=tokenizer,
     )
 
-    logger.info("Starting training ...")
+    logger.info("Starting defender training (gen %d) ...", gen_idx)
     trainer.train()
+    trainer.save_model(output_dir)
+    logger.info("Model saved to %s", output_dir)
+    return output_dir
 
-    trainer.save_model(tr["output_dir"])
-    logger.info("Model saved to %s", tr["output_dir"])
+
+def main() -> None:
+    """CLI entrypoint for defender GRPO training. Requires CUDA GPU."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(description="Train SRE Arena defender with GRPO")
+    parser.add_argument("--config", required=True, help="Path to YAML config file")
+    parser.add_argument(
+        "--opponent-checkpoint",
+        default=None,
+        help="Path to trained attacker checkpoint (Phase 7)",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    train_defender(cfg, opponent_checkpoint=args.opponent_checkpoint, gen_idx=0)
 
 
 if __name__ == "__main__":
