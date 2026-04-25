@@ -179,7 +179,7 @@ def train_defender(
         model_name,
         quantization_config=bnb_config,
         device_map="auto",
-        dtype=torch.float16,
+        dtype=torch.bfloat16,
     )
     model = prepare_model_for_kbit_training(model)
 
@@ -217,7 +217,7 @@ def train_defender(
         num_generations=tr["rollouts_per_episode"],
         temperature=tr["temperature"],
         top_p=tr["top_p"],
-        fp16=True,
+        bf16=True,
     )
 
     reward_fn = make_reward_function(task_id=cfg["env"]["task_id"])

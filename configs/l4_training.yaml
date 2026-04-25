@@ -9,7 +9,7 @@ per_generation:
 model:
   name: "Qwen/Qwen2.5-3B-Instruct"
   load_in_4bit: true
-  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_compute_dtype: "bfloat16"
 
 lora:
   r: 16
