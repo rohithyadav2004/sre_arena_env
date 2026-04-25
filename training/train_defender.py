@@ -179,6 +179,7 @@ def train_defender(
         model_name,
         quantization_config=bnb_config,
         device_map="auto",
+        dtype=torch.float16,
     )
     model = prepare_model_for_kbit_training(model)
 
