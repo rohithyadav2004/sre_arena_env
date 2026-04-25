@@ -23,12 +23,18 @@ try:
     from ..models import AttackerObservation
     from ..server.sre_arena_env_environment import SreArenaEnvironment
     from .dataset_builder import build_attacker_rollout_dataset
-    from .reward_function import make_attacker_reward_function
+    from .reward_function import (
+        make_attacker_reward_function,
+        make_attacker_reward_function_with_opponent,
+    )
 except ImportError:
     from models import AttackerObservation
     from server.sre_arena_env_environment import SreArenaEnvironment
     from training.dataset_builder import build_attacker_rollout_dataset
-    from training.reward_function import make_attacker_reward_function
+    from training.reward_function import (
+        make_attacker_reward_function,
+        make_attacker_reward_function_with_opponent,
+    )
 
 
 def load_config(config_path: str) -> dict:
@@ -101,22 +107,15 @@ def train_attacker(
 
     Args:
         cfg: Parsed YAML config dict.
-        opponent_checkpoint: Path to trained defender checkpoint. Raises
-            NotImplementedError — loading trained opponents is Phase 7 work.
+        opponent_checkpoint: Path to a saved defender LoRA checkpoint directory.
+            When provided, loads a frozen OpponentModel to apply defensive rules
+            before evaluating each attacker rollout. When None, uses a fresh env
+            with no defender rules (Gen-0 baseline).
         gen_idx: Generation index, appended to the output directory name.
 
     Returns:
         Path string of the saved checkpoint directory.
-
-    Raises:
-        NotImplementedError: If opponent_checkpoint is provided.
     """
-    if opponent_checkpoint is not None:
-        raise NotImplementedError(
-            "Loading a trained opponent from checkpoint is Phase 7 work. "
-            f"Got opponent_checkpoint={opponent_checkpoint!r}"
-        )
-
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -145,6 +144,17 @@ def train_attacker(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    opponent = None
+    if opponent_checkpoint is not None:
+        try:
+            from .opponent_loader import OpponentModel
+        except ImportError:
+            from training.opponent_loader import OpponentModel
+        logger.info("Loading opponent defender checkpoint: %s", opponent_checkpoint)
+        opponent = OpponentModel.from_checkpoint(
+            model_name, opponent_checkpoint, "defender", tokenizer
+        )
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -187,9 +197,15 @@ def train_attacker(
         num_generations=tr["rollouts_per_episode"],
         temperature=tr["temperature"],
         top_p=tr["top_p"],
+        fp16=True,
     )
 
-    reward_fn = make_attacker_reward_function(task_id=cfg["env"]["task_id"])
+    if opponent is not None:
+        reward_fn = make_attacker_reward_function_with_opponent(
+            opponent=opponent, task_id=cfg["env"]["task_id"]
+        )
+    else:
+        reward_fn = make_attacker_reward_function(task_id=cfg["env"]["task_id"])
 
     trainer = GRPOTrainer(
         model=model,

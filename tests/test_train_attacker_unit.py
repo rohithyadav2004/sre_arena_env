@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from datasets import Dataset
@@ -121,3 +122,76 @@ class TestCollectAttackerObservations:
     def test_steps_remaining_is_positive(self):
         obs, _ = _collect_attacker_observations(_minimal_cfg(num_episodes=2))
         assert all(o.steps_remaining > 0 for o in obs)
+
+
+# ── make_attacker_reward_function_with_opponent ──────────────────────────────
+
+
+class TestMakeAttackerRewardFunctionWithOpponent:
+    """Tests for make_attacker_reward_function_with_opponent.
+
+    The opponent (a defender) is a MagicMock whose generate_action() returns
+    a DefenderAction dict. The env resets in defender mode, applies that action,
+    then evaluates the attacker's completion.
+    """
+
+    def _noop_opponent(self) -> MagicMock:
+        """Opponent that always returns a no-op read_log action."""
+        m = MagicMock()
+        m.generate_action.return_value = {
+            "action_type": "read_log",
+            "log_tail_lines": 10,
+        }
+        return m
+
+    def test_returns_callable(self):
+        from sre_arena_env.training.reward_function import (
+            make_attacker_reward_function_with_opponent,
+        )
+        assert callable(
+            make_attacker_reward_function_with_opponent(opponent=self._noop_opponent())
+        )
+
+    def test_malformed_completion_returns_penalty(self):
+        from sre_arena_env.training.reward_function import (
+            make_attacker_reward_function_with_opponent,
+        )
+        fn = make_attacker_reward_function_with_opponent(
+            opponent=self._noop_opponent(), parse_failure_penalty=-0.1
+        )
+        rewards = fn(prompts=["p"], completions=["not json"], episode_seed=[42])
+        assert rewards == [-0.1]
+
+    def test_valid_attack_returns_float_in_range(self):
+        from sre_arena_env.training.reward_function import (
+            make_attacker_reward_function_with_opponent,
+        )
+        fn = make_attacker_reward_function_with_opponent(opponent=self._noop_opponent())
+        rewards = fn(
+            prompts=["p"],
+            completions=[
+                '{"template": "single_ip_flood", "count": 10, "target_path": "/login"}'
+            ],
+            episode_seed=[42],
+        )
+        assert len(rewards) == 1
+        assert isinstance(rewards[0], float)
+        assert -0.5 <= rewards[0] <= 1.5
+
+    def test_opponent_generate_action_called_once_per_valid_completion(self):
+        from sre_arena_env.training.reward_function import (
+            make_attacker_reward_function_with_opponent,
+        )
+        opponent = self._noop_opponent()
+        fn = make_attacker_reward_function_with_opponent(opponent=opponent)
+        fn(
+            prompts=["p", "p", "p"],
+            completions=[
+                '{"template": "single_ip_flood", "count": 10, "target_path": "/login"}',
+                "not json",
+                '{"template": "ip_spray", "count": 5, "target_path": "/api/data"}',
+            ],
+            episode_seed=[42, 43, 44],
+        )
+        # Called once for each valid completion (parse failures skip opponent)
+        assert opponent.generate_action.call_count == 2

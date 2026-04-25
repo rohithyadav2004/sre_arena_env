@@ -109,3 +109,61 @@ def make_attacker_reward_function(
         return rewards
 
     return reward_fn
+
+
+def make_attacker_reward_function_with_opponent(
+    opponent,
+    task_id: str = "task1",
+    parse_failure_penalty: float = -0.1,
+) -> Any:
+    """Return a GRPO reward function for attacker training against a trained defender.
+
+    For each completion the opponent (defender) applies a blind defensive action
+    to a fresh environment, then the parsed attacker action is evaluated against
+    the resulting nginx/middleware state.
+
+    The env is reset in defender mode so the opponent can write rules; the role
+    is then flipped to 'attacker' before evaluating the LLM's action.
+
+    Args:
+        opponent: OpponentModel wrapping a frozen defender checkpoint. Required.
+        task_id: Scenario task ID passed to env.reset().
+        parse_failure_penalty: Reward returned when LLM output cannot be parsed.
+
+    Returns:
+        Callable compatible with GRPOTrainer's reward_funcs parameter.
+    """
+    try:
+        from ..models import DefenderAction as _DA
+    except ImportError:
+        from models import DefenderAction as _DA  # type: ignore[no-redef]
+
+    def reward_fn(
+        prompts: list[str],
+        completions: list[str],
+        episode_seed: list[int],
+        **kwargs: Any,
+    ) -> list[float]:
+        rewards: list[float] = []
+        for completion, seed in zip(completions, episode_seed):
+            action, err = parse_attacker_action(completion)
+            if action is None:
+                logger.debug("attacker parse failure (seed=%d): %s", seed, err)
+                rewards.append(parse_failure_penalty)
+                continue
+
+            env = SreArenaEnvironment()
+            # Reset in defender mode so opponent can write nginx/middleware rules.
+            env.reset(role="defender", seed=int(seed), task_id=task_id)
+            # Apply opponent's blind defensive action (may write deny rules, middleware).
+            def_dict = opponent.generate_action()
+            env.step(_DA(**def_dict))
+            # Flip role: nginx/middleware state persists, attacker now evaluates.
+            env._role = "attacker"
+            env._arena_state.current_role = "attacker"
+            obs = env.step(action)
+            rewards.append(float(obs.reward))
+
+        return rewards
+
+    return reward_fn

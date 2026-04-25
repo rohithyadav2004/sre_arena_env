@@ -55,12 +55,14 @@ def load_config(config_path: str) -> dict:
 
 def _collect_observations(
     cfg: dict,
+    opponent=None,
 ) -> tuple[list[DefenderObservation], list[dict], list[int]]:
     """Collect one step-1 observation per training episode.
 
     For each episode:
     1. Reset env with a deterministic seed.
-    2. Inject a random attacker template into env._last_attacker_action.
+    2. Inject attacker template into env._last_attacker_action — either from
+       a scripted baseline (opponent=None) or from a trained OpponentModel.
     3. Take a read_log action to generate traffic and populate metrics.
     4. Collect the resulting DefenderObservation as the training prompt.
 
@@ -70,6 +72,8 @@ def _collect_observations(
 
     Args:
         cfg: Parsed YAML config dict.
+        opponent: Optional OpponentModel for the attacker role. When None,
+            ScriptedAttacker is used (Gen-0 baseline).
 
     Returns:
         Tuple of (observations, attacker_dicts, episode_seeds), all same length.
@@ -78,7 +82,7 @@ def _collect_observations(
     base_seed: int = cfg["env"]["base_seed"]
     task_id: str = cfg["env"]["task_id"]
 
-    attacker = ScriptedAttacker(seed=base_seed)
+    scripted = ScriptedAttacker(seed=base_seed) if opponent is None else None
     env = SreArenaEnvironment()
 
     observations: list[DefenderObservation] = []
@@ -89,8 +93,11 @@ def _collect_observations(
         seed = base_seed + ep
         env.reset(role="defender", seed=seed, task_id=task_id)
 
-        attacker_action = attacker.act()
-        attacker_dict = attacker_action.model_dump(exclude={"delay_ms", "metadata"})
+        if opponent is not None:
+            attacker_dict = opponent.generate_action()
+        else:
+            attacker_action = scripted.act()
+            attacker_dict = attacker_action.model_dump(exclude={"delay_ms", "metadata"})
         env._last_attacker_action = attacker_dict
 
         # Warm-up step: triggers traffic generation (log not yet populated)
@@ -120,22 +127,14 @@ def train_defender(
 
     Args:
         cfg: Parsed YAML config dict.
-        opponent_checkpoint: Path to trained attacker checkpoint. Raises
-            NotImplementedError — loading trained opponents is Phase 7 work.
+        opponent_checkpoint: Path to a saved attacker LoRA checkpoint directory.
+            When provided, loads a frozen OpponentModel to generate attacker actions
+            during rollout collection. When None, uses ScriptedAttacker (Gen-0 baseline).
         gen_idx: Generation index, appended to the output directory name.
 
     Returns:
         Path string of the saved checkpoint directory.
-
-    Raises:
-        NotImplementedError: If opponent_checkpoint is provided.
     """
-    if opponent_checkpoint is not None:
-        raise NotImplementedError(
-            "Loading a trained opponent from checkpoint is Phase 7 work. "
-            f"Got opponent_checkpoint={opponent_checkpoint!r}"
-        )
-
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -165,6 +164,17 @@ def train_defender(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    opponent = None
+    if opponent_checkpoint is not None:
+        try:
+            from .opponent_loader import OpponentModel
+        except ImportError:
+            from training.opponent_loader import OpponentModel
+        logger.info("Loading opponent attacker checkpoint: %s", opponent_checkpoint)
+        opponent = OpponentModel.from_checkpoint(
+            model_name, opponent_checkpoint, "attacker", tokenizer
+        )
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
@@ -185,7 +195,7 @@ def train_defender(
     model.print_trainable_parameters()
 
     logger.info("Collecting rollout observations ...")
-    observations, attacker_dicts, episode_seeds = _collect_observations(cfg)
+    observations, attacker_dicts, episode_seeds = _collect_observations(cfg, opponent=opponent)
     dataset = build_rollout_dataset(observations, attacker_dicts, episode_seeds)
     logger.info("Dataset built: %d prompts", len(dataset))
 

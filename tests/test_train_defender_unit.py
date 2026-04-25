@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from datasets import Dataset
@@ -195,9 +196,9 @@ class TestCollectObservations:
         obs, dicts, seeds = _collect_observations(_minimal_cfg(num_episodes=3))
         assert len(obs) == len(dicts) == len(seeds) == 3
 
-    def test_episode_step_is_1_for_all_observations(self):
+    def test_episode_step_is_2_for_all_observations(self):
         obs, _, _ = _collect_observations(_minimal_cfg(num_episodes=2))
-        assert all(o.episode_step == 1 for o in obs)
+        assert all(o.episode_step == 2 for o in obs)
 
     def test_last_step_metrics_populated(self):
         # 80 legit + N malicious = requests_total > 0
@@ -213,3 +214,26 @@ class TestCollectObservations:
     def test_attacker_dicts_have_template_key(self):
         _, dicts, _ = _collect_observations(_minimal_cfg(num_episodes=2))
         assert all("template" in d for d in dicts)
+
+
+# ── _collect_observations with opponent ──────────────────────────────────────
+
+
+class TestCollectObservationsWithOpponent:
+    def test_uses_opponent_generate_action_for_each_episode(self):
+        opponent = MagicMock()
+        opponent.generate_action.return_value = {
+            "template": "ip_spray",
+            "count": 15,
+            "target_path": "/api/data",
+            "source_ips": [],
+            "payload": {},
+        }
+        _, dicts, _ = _collect_observations(_minimal_cfg(num_episodes=2), opponent=opponent)
+        assert opponent.generate_action.call_count == 2
+        assert all(d["template"] == "ip_spray" for d in dicts)
+
+    def test_without_opponent_uses_scripted_attacker(self):
+        from sre_arena_env.training.scripted_attacker import TEMPLATES
+        _, dicts, _ = _collect_observations(_minimal_cfg(num_episodes=3))
+        assert all(d["template"] in TEMPLATES for d in dicts)
