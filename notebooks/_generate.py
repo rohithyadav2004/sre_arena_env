@@ -25,6 +25,9 @@ MD_STEP1 = """\
 ## Step 1: Install dependencies
 
 Installs the package + training extras. Takes ~3 minutes.
+
+> **After installation completes, restart the runtime once** (Runtime → Restart runtime),
+> then re-run from this cell. This is required for `bitsandbytes` and `peft` to load correctly.
 """
 
 CODE_INSTALL = """\
