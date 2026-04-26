@@ -229,6 +229,29 @@ sre_arena_env/
 
 ---
 
+### Watching the Space live
+
+The dashboard at [https://blitz1809-sre-arena.hf.space](https://blitz1809-sre-arena.hf.space) 
+shows real-time agent activity via WebSocket. To see events flow:
+
+1. Open the Space link in your browser
+2. In a separate terminal, run an inference session or test:
+
+```bash
+   # Quick way — run inference.py against the live Space
+   export OPENENV_URL="https://blitz1809-sre-arena.hf.space"
+   export API_BASE_URL="https://api.groq.com/openai/v1"
+   export MODEL_NAME="llama-3.3-70b-versatile"
+   export HF_TOKEN="<your_groq_or_hf_key>"
+   python inference.py
+```
+
+3. Watch the Space tab — request log, defender state, attacker strategy, 
+   and reward curves all update live as the agent steps through the env.
+
+Without an active client connected, the dashboard shows "Waiting for events..." 
+— this is normal.
+
 ## Future Work
 
 - **Approach 3 (observation-aware opponents):** Eliminate Gen 1's gradient collapse by sharing observations between defender and attacker during reward eval
