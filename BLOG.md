@@ -163,6 +163,8 @@ The gradient norm tells the sharpest story: **a single spike at steps 1–3 (~0.
 
 The Gen 2 defender was trained from base Qwen weights with a freshly initialized LoRA — nothing carried over from Gen 0 in the model parameters. What "transferred" was the alternating-loop infrastructure correctly handing off the Gen 1 attacker checkpoint as the frozen opponent. With strong reward variance present at the start, GRPO converged in 3 gradient steps. This validates that the cross-generation training pipeline is functionally correct, even when an intermediate generation fails.
 
+**A precise note on Gen 2's "speed":** It would be tempting to read Gen 2's faster convergence as cumulative self-play improvement. It isn't. The Gen 2 defender starts with the same base Qwen2.5-7B + fresh LoRA as Gen 0 — no weight transfer happens. What differs is the opponent distribution. Gen 0 faces a scripted attacker that cycles deterministically through 8 templates. Gen 2 faces the Gen 1 attacker checkpoint, which (due to zero gradient updates) effectively produces base-Qwen attack policies — a different distribution. Gen 2's faster convergence is evidence that opponent distribution shifts the difficulty of the task, not that the system accumulated capability across generations. Approach 3 (observation-aware opponents) would provide a real test of cumulative self-play improvement.
+
 **The combined story:** Gen 0 proved the env produces real learning curves. Gen 1 exposed the blind-context opponent collapse — with mathematical proof via gradient norm, reward variance, and entropy metrics. Gen 2 proved the infrastructure correctly handles the next iteration. Future work (Approach 3, observation-aware opponents) addresses Gen 1's failure mode directly.
 
 ---
@@ -210,4 +212,4 @@ Honest engineering disclosure from a project that went wrong in interesting ways
 
 ## Acknowledgements
 
-Thank you to Meta, Scaler, and PyTorch for organizing this hackathon and providing the OpenEnv framework that made a clean self-play environment possible. Thank you to Hugging Face for hosting, Jobs compute, and the model Hub. And thank you to Anthropic Claude for pair-debugging through bf16 hell at 2am — the engineer experience of this project was genuinely collaborative.
+Thank you to Meta, Scaler, and PyTorch for organizing this hackathon and providing the OpenEnv framework that made a clean self-play environment possible. Thank you to Hugging Face for hosting, Jobs compute, and the model Hub. 
