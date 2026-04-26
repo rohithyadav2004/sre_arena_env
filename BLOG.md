@@ -153,7 +153,7 @@ This is a documented failure mode of self-play with blind-context opponents. We 
 
 ### Gen 2 — The Defender Re-Learns in 3 Gradient Steps
 
-Wall clock: **5 hours 5 minutes** on A100 (similar to Gen 1; the cost is in the 200-token rollouts, not the optimizer steps).
+Wall clock: **1 hour 15 minutes** on A100 (similar to Gen 1; the cost is in the 200-token rollouts, not the optimizer steps).
 
 Gen 2 trains a fresh defender against the frozen Gen 1 attacker checkpoint. Starting reward: **0.21** — meaningfully higher than Gen 0's -0.03, because the broken Gen 1 attacker still produces varied (if random) attacks that give the defender a non-trivial learning signal.
 
