@@ -169,6 +169,60 @@ The Gen 2 defender was trained from base Qwen weights with a freshly initialized
 
 ---
 
+## Watching the Agent in Action
+
+Beyond reward curves, we loaded the trained Gen 2 defender from HF Hub and gave it three hand-crafted attack scenarios. Each scenario provides a realistic log tail and asks the agent to choose one of three actions (`read_log`, `append_nginx_rule`, `write_express_middleware`).
+
+### Scenario 1: Brute-force from a single IP
+
+**Observation:** 10 `POST /login` requests from `10.0.5.42` in 4 seconds, with a few legitimate `GET /api/data` requests from `192.168.1.*` mixed in.
+
+**Action chosen by the agent:**
+
+```json
+{"action_type": "append_nginx_rule", "rule_text": "limit_req zone=per_ip burst=5 nodelay;"}
+```
+
+This is broadly effective — rate-limiting per-IP catches the flooder while letting through occasional legitimate requests at low rate. But the surgical answer would have been `deny 10.0.5.42;`, which would block exactly the attacker without throttling anyone else. The trained model learned a "default to rate-limiting" policy during training because it produced reward 1.0 against the scripted attacker — without distinguishing between "single IP" and "many IPs" cases.
+
+This is a fair characterization of GRPO with sparse rewards: the model finds *a* solution that works, not necessarily *the* optimal one. Future work on reward shaping (e.g., a small bonus for surgical IP blocks) would teach this distinction.
+
+### Scenario 2: Distributed flood from a /16 subnet
+
+**Observation:** ~80 requests/second from rotating IPs in `172.16.0.*` (a botnet pattern), plus legitimate traffic from `192.168.1.*`.
+
+**Action chosen:**
+
+```json
+{"action_type": "append_nginx_rule", "rule_text": "limit_req zone=per_ip burst=5 nodelay;"}
+```
+
+Correct. When no single IP is the culprit, per-IP rate limiting is the right tool. Each individual attacker IP exceeds the burst threshold and gets throttled, while legitimate users from a different subnet are unaffected.
+
+### Scenario 3: Payload injection on /api/process
+
+**Observation:** Multiple POST requests with `{"command": "cat /etc/passwd"}`, `{"command": "rm -rf /"}`, etc., interleaved with legitimate POSTs without a `command` field.
+
+**Action chosen:**
+
+```json
+{
+  "action_type": "write_express_middleware",
+  "route": "/api/process",
+  "middleware_js": "if (req.body.command) return res.status(403).end();"
+}
+```
+
+Textbook response. The model correctly identified that nginx-level rules can't inspect JSON payloads, and chose the Express layer instead — with a clean, targeted middleware check that returns 403 only when the malicious `command` field is present, while letting normal POSTs pass through.
+
+### What this tells us
+
+The agent has learned action-type selection (when to use middleware vs. nginx rules) very well — Scenario 3 is exactly right. Within the nginx-rule action type, it has learned a strong default (`limit_req`) that's effective against most attack patterns, but doesn't yet differentiate between "block one IP" and "rate-limit everyone." This is consistent with the training reward saturating quickly once the agent finds the broad policy.
+
+Inference outputs are reproducible — the JSON file is at [`blitz1809/sre-arena-defender-gen2/inference_demo.json`](https://huggingface.co/blitz1809/sre-arena-defender-gen2/blob/main/inference_demo.json).
+
+---
+
 ## Challenges & What Broke
 
 Honest engineering disclosure from a project that went wrong in interesting ways.
@@ -186,6 +240,8 @@ Honest engineering disclosure from a project that went wrong in interesting ways
 ---
 
 ## What We'd Do Differently / Future Work
+
+- **Reward shaping for surgical defenses:** Add a small bonus for IP-specific blocks when only one IP is malicious (vs. broad rate limits). Current GRPO converges on "default to rate limiting" because both strategies achieve the same reward against the scripted attacker. Differentiating reward signals would teach finer-grained policy selection.
 
 - **Approach 3 (observation-aware opponents):** Instead of blind generation, run the frozen opponent with shared environment observations — it sees the actual traffic log before generating a response. This eliminates the `group_std = 0` failure by coupling the opponent's output quality to real environment state, ensuring reward variance is non-zero.
 
