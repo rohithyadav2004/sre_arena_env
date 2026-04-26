@@ -1,0 +1,26 @@
+[
+  {
+    "scenario_num": 1,
+    "name": "Single IP flood attack on /login",
+    "description": "Brute-force credential stuffing from one IP.",
+    "observation": "Last step metrics: {\"malicious_blocked\": 0, \"total_malicious\": 50, \"legit_allowed\": 12, \"total_legit\": 12}\nCurrent rules: []\nRecent access log:\n10.0.5.42 - - [12:00:01] \"POST /login HTTP/1.1\" 401\n10.0.5.42 - - [12:00:01] \"POST /login HTTP/1.1\" 401\n10.0.5.42 - - [12:00:01] \"POST /login HTTP/1.1\" 401\n10.0.5.42 - - [12:00:02] \"POST /login HTTP/1.1\" 401\n10.0.5.42 - - [12:00:02] \"POST /login HTTP/1.1\" 401\n192.168.1.10 - - [12:00:03] \"GET /api/data HTTP/1.1\" 200\n10.0.5.42 - - [12:00:03] \"POST /login HTTP/1.1\" 401\n192.168.1.11 - - [12:00:03] \"GET /api/data HTTP/1.1\" 200\n10.0.5.42 - - [12:00:04] \"POST /login HTTP/1.1\" 401\n10.0.5.42 - - [12:00:04] \"POST /login HTTP/1.1\" 401\n",
+    "defender_action": "{\"action_type\": \"append_nginx_rule\", \"rule_text\": \"limit_req zone=per_ip burst=5 nodelay;\"}",
+    "expected_pattern": "deny 10.0.5.42"
+  },
+  {
+    "scenario_num": 2,
+    "name": "Distributed flood (rotating IPs in 172.16.0.*/16)",
+    "description": "DDoS from a botnet \u2014 needs rate limiting, not single-IP blocking.",
+    "observation": "Last step metrics: {\"malicious_blocked\": 0, \"total_malicious\": 80, \"legit_allowed\": 15, \"total_legit\": 15}\nCurrent rules: []\nRecent access log:\n172.16.0.5 - - [12:01:00] \"GET /api/data HTTP/1.1\" 200\n172.16.0.42 - - [12:01:00] \"GET /api/data HTTP/1.1\" 200\n172.16.0.91 - - [12:01:00] \"GET /api/data HTTP/1.1\" 200\n172.16.0.18 - - [12:01:00] \"GET /api/data HTTP/1.1\" 200\n172.16.0.66 - - [12:01:01] \"GET /api/data HTTP/1.1\" 200\n172.16.0.123 - - [12:01:01] \"GET /api/data HTTP/1.1\" 200\n172.16.0.201 - - [12:01:01] \"GET /api/data HTTP/1.1\" 200\n192.168.1.10 - - [12:01:02] \"GET /api/data HTTP/1.1\" 200\n172.16.0.55 - - [12:01:02] \"GET /api/data HTTP/1.1\" 200\n(...rotating 172.16.0.* IPs continue, ~80 reqs/sec...)\n",
+    "defender_action": "{\"action_type\": \"append_nginx_rule\", \"rule_text\": \"limit_req zone=per_ip burst=5 nodelay;\"}",
+    "expected_pattern": "limit_req or 172.16.0"
+  },
+  {
+    "scenario_num": 3,
+    "name": "Payload injection on /api/process",
+    "description": "Command injection requires Express middleware, not nginx rules.",
+    "observation": "Last step metrics: {\"malicious_blocked\": 0, \"total_malicious\": 30, \"legit_allowed\": 8, \"total_legit\": 8}\nCurrent rules: []\nCurrent middleware: []\nRecent access log:\n10.0.10.5 - - [12:02:00] \"POST /api/process HTTP/1.1\" 200 body={\"command\": \"cat /etc/passwd\"}\n10.0.10.6 - - [12:02:00] \"POST /api/process HTTP/1.1\" 200 body={\"command\": \"rm -rf /\"}\n10.0.10.7 - - [12:02:01] \"POST /api/process HTTP/1.1\" 200 body={\"command\": \"whoami\"}\n192.168.1.10 - - [12:02:01] \"POST /api/process HTTP/1.1\" 200 body={\"data\": \"normal_payload\"}\n10.0.10.8 - - [12:02:02] \"POST /api/process HTTP/1.1\" 200 body={\"command\": \"ls -la /var\"}\n192.168.1.11 - - [12:02:02] \"POST /api/process HTTP/1.1\" 200 body={\"data\": \"another_normal\"}\n10.0.10.9 - - [12:02:03] \"POST /api/process HTTP/1.1\" 200 body={\"command\": \"id\"}\n",
+    "defender_action": "{\"action_type\": \"write_express_middleware\", \"route\": \"/api/process\", \"middleware_js\": \"if (req.body.command) return res.status(403).end();\"}",
+    "expected_pattern": "write_express_middleware or req.body.command"
+  }
+]
