@@ -219,7 +219,7 @@ Textbook response. The model correctly identified that nginx-level rules can't i
 
 The agent has learned action-type selection (when to use middleware vs. nginx rules) very well — Scenario 3 is exactly right. Within the nginx-rule action type, it has learned a strong default (`limit_req`) that's effective against most attack patterns, but doesn't yet differentiate between "block one IP" and "rate-limit everyone." This is consistent with the training reward saturating quickly once the agent finds the broad policy.
 
-Inference outputs are reproducible — the JSON file is at [`blitz1809/sre-arena-defender-gen2/inference_demo.json`](https://huggingface.co/blitz1809/sre-arena-defender-gen2/blob/main/inference_demo.json).
+Inference outputs are reproducible — the JSON file is committed at [`hf_jobs/inference_demo.json`](hf_jobs/inference_demo.json), and the inference script that produced it is at [`hf_jobs/run_inference_demo.py`](hf_jobs/run_inference_demo.py).
 
 ---
 
