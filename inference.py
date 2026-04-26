@@ -16,8 +16,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Any
-
 from openai import OpenAI
 from pydantic import ValidationError
 
@@ -94,8 +92,7 @@ def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
         lines = text.splitlines()
-        # drop first line (```json or ```) and last line (```)
-        inner = lines[1:] if lines[-1].strip() == "```" else lines[1:]
+        inner = lines[1:]
         if inner and inner[-1].strip() == "```":
             inner = inner[:-1]
         text = "\n".join(inner).strip()
@@ -112,6 +109,7 @@ def _call_llm(client: OpenAI, system: str, user_msg: str) -> str:
         ],
         max_tokens=256,
         temperature=0.0,
+        timeout=30.0,
     )
     return response.choices[0].message.content or ""
 
@@ -195,8 +193,7 @@ def run_episode(llm: OpenAI, role: str, task_name: str, seed: int) -> None:
 
                 # Build LLM prompt and call model
                 if role == "defender":
-                    assert isinstance(obs, DefenderObservation)
-                    user_msg = _format_defender_obs(obs)
+                    user_msg = _format_defender_obs(obs) if isinstance(obs, DefenderObservation) else ""
                     try:
                         raw = _call_llm(llm, DEFENDER_SYSTEM, user_msg)
                         action, parse_err = _parse_defender_action(raw)
@@ -205,8 +202,7 @@ def run_episode(llm: OpenAI, role: str, task_name: str, seed: int) -> None:
                         parse_err = str(llm_exc)
                     action_label = action.action_type if parse_err is None else "parse_error"
                 else:
-                    assert isinstance(obs, AttackerObservation)
-                    user_msg = _format_attacker_obs(obs)
+                    user_msg = _format_attacker_obs(obs) if isinstance(obs, AttackerObservation) else ""
                     try:
                         raw = _call_llm(llm, ATTACKER_SYSTEM, user_msg)
                         action, parse_err = _parse_attacker_action(raw)
@@ -242,7 +238,7 @@ def run_episode(llm: OpenAI, role: str, task_name: str, seed: int) -> None:
         )
 
     except Exception as exc:
-        print(f"[END] success=false steps=0 score=0.0000 rewards=0.0000", flush=True)
+        print("[END] success=false steps=0 score=0.0000 rewards=", flush=True)
         print(f"WARNING: run_episode({role!r}) crashed: {exc}", file=sys.stderr, flush=True)
 
 
@@ -254,6 +250,9 @@ def run_episode(llm: OpenAI, role: str, task_name: str, seed: int) -> None:
 def main() -> None:
     if not _token:
         print("ERROR: set HF_TOKEN or OPENAI_API_KEY", file=sys.stderr)
+        # emit [END] for both expected episodes so downstream parsers don't hang
+        print("[END] success=false steps=0 score=0.0000 rewards=", flush=True)
+        print("[END] success=false steps=0 score=0.0000 rewards=", flush=True)
         sys.exit(1)
 
     llm = OpenAI(api_key=_token, base_url=API_BASE_URL)
